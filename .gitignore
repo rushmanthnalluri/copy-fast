@@ -1,0 +1,10 @@
+*.o
+copyfast
+benchmark
+bin/
+*.resume
+*.tmp*
+/tmp/
+*.dat
+*.img
+.DS_Store
