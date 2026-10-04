@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
     signals_init();
 
     struct stat src_st;
-    if (stat(src_path, &src_st) != 0) {
+    if (lstat(src_path, &src_st) != 0) {
         fprintf(stderr, "Error: cannot access source '%s': %s\n", src_path, strerror(errno));
         return 1;
     }

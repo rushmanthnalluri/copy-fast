@@ -67,6 +67,7 @@ static void *reader_thread_fn(void *arg) {
                         if (n < 0) ctx->error_code = errno;
                         slot->error_code = ctx->error_code;
                         buffer_pool_commit_write_slot(ctx->pool, slot);
+                        buffer_pool_close(ctx->pool);
                         break;
                     }
 
@@ -98,6 +99,7 @@ static void *reader_thread_fn(void *arg) {
                 if (n < 0) ctx->error_code = errno;
                 slot->error_code = ctx->error_code;
                 buffer_pool_commit_write_slot(ctx->pool, slot);
+                buffer_pool_close(ctx->pool);
                 break;
             }
 
@@ -146,6 +148,7 @@ static void *writer_thread_fn(void *arg) {
         if (slot->error_code != 0) {
             ctx->error_code = slot->error_code;
             buffer_pool_release_read_slot(ctx->pool, slot);
+            buffer_pool_close(ctx->pool);
             break;
         }
 
@@ -172,6 +175,7 @@ static void *writer_thread_fn(void *arg) {
 
             if (ctx->error_code != 0) {
                 buffer_pool_release_read_slot(ctx->pool, slot);
+                buffer_pool_close(ctx->pool);
                 break;
             }
 

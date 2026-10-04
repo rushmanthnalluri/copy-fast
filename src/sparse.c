@@ -54,6 +54,10 @@ int sparse_get_next_extent(int fd, off_t total_size, off_t *curr_offset, file_ex
             return -1;
         }
 
+        if (data_pos > total_size) {
+            data_pos = total_size;
+        }
+
         extent->offset = pos;
         extent->length = data_pos - pos;
         extent->is_hole = true;

@@ -27,10 +27,19 @@ int resume_read_journal(const char *journal_path, const struct stat *src_st, res
     if (fd < 0) return -1;
 
     resume_record_t rec;
-    ssize_t n = read(fd, &rec, sizeof(rec));
+    size_t total_read = 0;
+    char *ptr = (char *)&rec;
+    while (total_read < sizeof(rec)) {
+        ssize_t n = read(fd, ptr + total_read, sizeof(rec) - total_read);
+        if (n <= 0) {
+            if (n < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+            break;
+        }
+        total_read += (size_t)n;
+    }
     close(fd);
 
-    if (n != sizeof(rec)) return -1;
+    if (total_read != sizeof(rec)) return -1;
 
     /* Verify Magic and Version */
     if (rec.magic != RESUME_MAGIC || rec.version != RESUME_VERSION) {
@@ -83,15 +92,25 @@ int resume_save_checkpoint(const char *journal_path, const struct stat *src_st,
     size_t payload_len = offsetof(resume_record_t, crc32);
     rec.crc32 = calc_crc32((const uint8_t *)&rec, payload_len);
 
-    /* Atomic journal write: write to temp file then rename */
+    /* Atomic journal write: write to thread-unique temp file then rename */
     char tmp_path[1024];
-    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%d", journal_path, (int)getpid());
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%d.%lx", journal_path, (int)getpid(), (unsigned long)pthread_self());
 
     int fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd < 0) return -1;
 
-    ssize_t n = write(fd, &rec, sizeof(rec));
-    if (n != sizeof(rec)) {
+    size_t total_written = 0;
+    const char *wptr = (const char *)&rec;
+    while (total_written < sizeof(rec)) {
+        ssize_t n = write(fd, wptr + total_written, sizeof(rec) - total_written);
+        if (n <= 0) {
+            if (n < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+            break;
+        }
+        total_written += (size_t)n;
+    }
+
+    if (total_written != sizeof(rec)) {
         close(fd);
         unlink(tmp_path);
         return -1;

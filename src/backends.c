@@ -1,5 +1,6 @@
 #include "backends.h"
 #include "metadata.h"
+#include <limits.h>
 
 int copy_file_dispatch(const char *src_path, const char *dest_path, const copy_options_t *opts, progress_meter_t *prog) {
     struct stat st;
@@ -11,7 +12,7 @@ int copy_file_dispatch(const char *src_path, const char *dest_path, const copy_o
 
     /* Handle symbolic link */
     if (S_ISLNK(st.st_mode)) {
-        char target[1024];
+        char target[PATH_MAX];
         ssize_t len = readlink(src_path, target, sizeof(target) - 1);
         if (len < 0) {
             fprintf(stderr, "readlink failed on '%s': %s\n", src_path, strerror(errno));

@@ -210,6 +210,10 @@ int copy_file_uring(const char *src_path, const char *dest_path, const copy_opti
             size_t bytes_read = (size_t)res;
             atomic_fetch_add(&g_stats.total_bytes_read, bytes_read);
 
+            if (bytes_read < task->len && current_read_offset > (off_t)(task->offset + bytes_read)) {
+                current_read_offset = task->offset + bytes_read;
+            }
+
             if (opts->verify_checksum && opts->checksum_type != CHECKSUM_NONE) {
                 checksum_update(&chk_ctx, slots[s_idx].buf, bytes_read);
             }

@@ -37,26 +37,28 @@ int metadata_preserve_fd(int src_fd, int dest_fd, const struct stat *src_st) {
 int metadata_preserve_path(const char *src_path, const char *dest_path, const struct stat *src_st) {
     struct stat st;
     if (!src_st) {
-        if (stat(src_path, &st) != 0) return -1;
+        if (lstat(src_path, &st) != 0) return -1;
         src_st = &st;
     }
 
     int result = 0;
 
-    /* Mode */
-    mode_t mode = src_st->st_mode & 07777;
-    if (chmod(dest_path, mode) != 0) {
-        result = -1;
+    /* 1. Mode: do not chmod symlinks (Linux symlinks are always 0777) */
+    if (!S_ISLNK(src_st->st_mode)) {
+        mode_t mode = src_st->st_mode & 07777;
+        if (chmod(dest_path, mode) != 0) {
+            result = -1;
+        }
     }
 
-    /* Ownership */
-    if (chown(dest_path, src_st->st_uid, src_st->st_gid) != 0) {
+    /* 2. Ownership: use fchownat with AT_SYMLINK_NOFOLLOW so symlinks themselves get owned */
+    if (fchownat(AT_FDCWD, dest_path, src_st->st_uid, src_st->st_gid, AT_SYMLINK_NOFOLLOW) != 0) {
         if (errno != EPERM) {
             result = -1;
         }
     }
 
-    /* Timestamps */
+    /* 3. Timestamps: utimensat with AT_SYMLINK_NOFOLLOW */
     struct timespec times[2];
     times[0] = src_st->st_atim;
     times[1] = src_st->st_mtim;

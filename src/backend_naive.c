@@ -55,8 +55,9 @@ int copy_file_naive(const char *src_path, const char *dest_path, const copy_opti
     }
 
     size_t buf_size = opts->buffer_size ? opts->buffer_size : COPYFAST_DEFAULT_BUFFER_SIZE;
-    void *buf = malloc(buf_size);
-    if (!buf) {
+    void *buf = NULL;
+    int mem_res = posix_memalign(&buf, 4096, buf_size);
+    if (mem_res != 0 || !buf) {
         close(src_fd);
         close(dest_fd);
         return -1;
