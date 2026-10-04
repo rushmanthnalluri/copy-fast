@@ -269,6 +269,89 @@ test_corrupted_journal_recovery() {
 }
 
 # =========================================================================
+# TEST 10: Read-only Directory Permission Recursion & Preservation
+# =========================================================================
+test_readonly_dir_preservation() {
+    local src_dir="$TEST_DIR/ro_tree_src"
+    local dest_dir="$TEST_DIR/ro_tree_dest"
+
+    mkdir -p "$src_dir/ro_sub"
+    echo "payload in readonly dir" > "$src_dir/ro_sub/data.txt"
+    chmod 0555 "$src_dir/ro_sub"
+    chmod 0555 "$src_dir"
+
+    "$COPYFAST" -Q -R -p "$src_dir" "$dest_dir"
+
+    # Restore write permission on source so trap cleanup can remove it
+    chmod 0755 "$src_dir" "$src_dir/ro_sub"
+
+    # Verify destination files exist and content matches
+    if [ ! -f "$dest_dir/ro_sub/data.txt" ]; then
+        echo "File in readonly dir missing!"
+        chmod -R 0755 "$dest_dir" 2>/dev/null || true
+        return 1
+    fi
+
+    local src_content="payload in readonly dir"
+    local dest_content=$(cat "$dest_dir/ro_sub/data.txt")
+    if [ "$src_content" != "$dest_content" ]; then
+        echo "Content mismatch in readonly directory!"
+        chmod -R 0755 "$dest_dir" 2>/dev/null || true
+        return 1
+    fi
+
+    # Check that permissions were preserved as 0555
+    local dest_mode=$(stat -c "%a" "$dest_dir/ro_sub")
+    chmod -R 0755 "$dest_dir" 2>/dev/null || true
+    if [ "$dest_mode" != "555" ]; then
+        echo "Readonly mode not preserved: got $dest_mode expected 555"
+        return 1
+    fi
+
+    return 0
+}
+
+# =========================================================================
+# TEST 11: Direct I/O (-d / --direct-io) Transfer Verification
+# =========================================================================
+test_direct_io() {
+    local src="$TEST_DIR/direct_src.bin"
+    local dest="$TEST_DIR/direct_dest.bin"
+
+    head -c 2097152 </dev/urandom > "$src"
+    local src_hash=$(sha256sum "$src" | awk '{print $1}')
+
+    "$COPYFAST" -Q -d -b naive "$src" "$dest"
+    local dest_hash=$(sha256sum "$dest" | awk '{print $1}')
+
+    if [ "$src_hash" != "$dest_hash" ]; then
+        echo "Direct I/O transfer mismatch!"
+        return 1
+    fi
+    return 0
+}
+
+# =========================================================================
+# TEST 12: Directory Copy Into Existing Destination Directory
+# =========================================================================
+test_dir_into_existing_dest() {
+    local src_dir="$TEST_DIR/standalone_src"
+    local parent_dest="$TEST_DIR/existing_parent"
+
+    mkdir -p "$src_dir"
+    echo "content" > "$src_dir/item.txt"
+    mkdir -p "$parent_dest"
+
+    "$COPYFAST" -Q -R "$src_dir" "$parent_dest"
+
+    if [ ! -f "$parent_dest/standalone_src/item.txt" ]; then
+        echo "Directory copy did not nest into existing parent: expected $parent_dest/standalone_src/item.txt"
+        return 1
+    fi
+    return 0
+}
+
+# =========================================================================
 # Run All Tests
 # =========================================================================
 echo "========================================================="
@@ -284,6 +367,9 @@ run_test "Corrupted resume journal detection and recovery" test_corrupted_journa
 run_test "Buffer size (64K, 4M) and queue depth (2, 16) sweep" test_param_sweep
 run_test "Parallel directory tree and symlink recursion" test_recursive_tree
 run_test "Zero-byte and boundary condition handling" test_edge_cases
+run_test "Read-only directory traversal and mode preservation" test_readonly_dir_preservation
+run_test "Direct I/O bypass cache transfer (-d)" test_direct_io
+run_test "Directory copy into existing parent directory" test_dir_into_existing_dest
 
 echo "========================================================="
 echo -e "Results: ${GREEN}$pass_count passed${NC}, ${RED}$fail_count failed${NC}"

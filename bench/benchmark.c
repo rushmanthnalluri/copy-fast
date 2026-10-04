@@ -12,6 +12,25 @@ typedef struct {
     double throughput_mbps;
 } bench_result_t;
 
+static const char *g_bench_files[] = {
+    "/tmp/copyfast_bench_src.dat",
+    "/tmp/copyfast_bench_dest.dat",
+    "/tmp/copyfast_bench_sparse.dat",
+    "/tmp/copyfast_bench_sparse_dest.dat"
+};
+
+static void cleanup_bench_files(void) {
+    for (size_t i = 0; i < 4; ++i) {
+        unlink(g_bench_files[i]);
+    }
+}
+
+static void bench_sig_handler(int sig) {
+    (void)sig;
+    cleanup_bench_files();
+    _exit(130);
+}
+
 static void create_test_file(const char *path, size_t size, bool sparse) {
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd < 0) return;
@@ -25,9 +44,11 @@ static void create_test_file(const char *path, size_t size, bool sparse) {
             (void)w;
             if (size > 20 * 1024 * 1024) {
                 w = pwrite(fd, buf, 1024 * 1024, size / 2);
+                (void)w;
             }
             if (size > 2 * 1024 * 1024) {
                 w = pwrite(fd, buf, 1024 * 1024, size - (1024 * 1024));
+                (void)w;
             }
             free(buf);
         }
@@ -43,8 +64,8 @@ static void create_test_file(const char *path, size_t size, bool sparse) {
             while (written < size) {
                 size_t to_write = (size - written < chunk) ? (size - written) : chunk;
                 ssize_t w = pwrite(fd, buf, to_write, written);
-                (void)w;
-                written += to_write;
+                if (w <= 0) break;
+                written += (size_t)w;
             }
             free(buf);
         }
@@ -105,6 +126,10 @@ static void run_single_benchmark(const char *src_path, const char *dest_path,
 }
 
 int main(int argc, char **argv) {
+    atexit(cleanup_bench_files);
+    signal(SIGINT, bench_sig_handler);
+    signal(SIGTERM, bench_sig_handler);
+
     size_t test_size = 100 * 1024 * 1024; /* 100 MB default */
     if (argc > 1) {
         copyfast_parse_size(argv[1], &test_size);

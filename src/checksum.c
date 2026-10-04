@@ -319,7 +319,13 @@ int checksum_file(const char *path, checksum_type_t type, char *out_hex, size_t 
     checksum_init(&ctx, type);
 
     ssize_t n;
-    while ((n = read(fd, buf, buf_size)) > 0) {
+    while (1) {
+        n = read(fd, buf, buf_size);
+        if (n == 0) break;
+        if (n < 0) {
+            if (errno == EINTR || errno == EAGAIN) continue;
+            break;
+        }
         checksum_update(&ctx, buf, (size_t)n);
     }
 

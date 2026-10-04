@@ -195,10 +195,18 @@ int main(int argc, char **argv) {
     struct stat dest_st;
     bool dest_is_dir = (stat(dest_path, &dest_st) == 0 && S_ISDIR(dest_st.st_mode));
 
+    char base[1024];
+    copyfast_get_basename(src_path, base, sizeof(base));
+
+    size_t src_len = strlen(src_path);
+    bool src_has_trailing_slash = (src_len > 1 && src_path[src_len - 1] == '/');
+    size_t dest_len = strlen(dest_path);
+    const char *sep = (dest_len > 0 && dest_path[dest_len - 1] == '/') ? "" : "/";
+
     if (dest_is_dir && !S_ISDIR(src_st.st_mode)) {
-        const char *base = strrchr(src_path, '/');
-        base = base ? base + 1 : src_path;
-        snprintf(resolved_dest, sizeof(resolved_dest), "%s/%s", dest_path, base);
+        snprintf(resolved_dest, sizeof(resolved_dest), "%s%s%s", dest_path, sep, base);
+    } else if (dest_is_dir && S_ISDIR(src_st.st_mode) && !src_has_trailing_slash && strcmp(base, ".") != 0) {
+        snprintf(resolved_dest, sizeof(resolved_dest), "%s%s%s", dest_path, sep, base);
     } else {
         snprintf(resolved_dest, sizeof(resolved_dest), "%s", dest_path);
     }

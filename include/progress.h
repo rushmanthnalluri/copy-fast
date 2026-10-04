@@ -14,6 +14,7 @@ typedef struct {
     double      instant_speed_mbps;
     bool        is_tty;
     bool        is_quiet;
+    bool        is_finished;
     pthread_t   thread;
     bool        thread_running;
 } progress_meter_t;

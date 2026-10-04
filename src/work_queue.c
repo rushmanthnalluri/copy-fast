@@ -170,8 +170,9 @@ static void scan_directory_tree(const char *src_dir, const char *dest_dir,
 
     struct stat dir_st;
     if (stat(src_dir, &dir_st) == 0) {
-        /* Ensure destination directory exists */
-        mkdir(dest_dir, dir_st.st_mode & 07777);
+        /* Ensure destination directory exists with user write permissions for file creation */
+        mode_t create_mode = opts->preserve_metadata ? ((dir_st.st_mode & 07777) | S_IRWXU) : 0777;
+        mkdir(dest_dir, create_mode);
 
         /* Save directory metadata for post-order timestamp restoration */
         if (opts->preserve_metadata) {
@@ -223,8 +224,9 @@ int copy_directory_recursive(const char *src_dir, const char *dest_dir,
         return -1;
     }
 
-    /* Create destination top-level directory */
-    mkdir(dest_dir, src_st.st_mode & 07777);
+    /* Create destination top-level directory with write permission */
+    mode_t top_mode = opts->preserve_metadata ? ((src_st.st_mode & 07777) | S_IRWXU) : 0777;
+    mkdir(dest_dir, top_mode);
 
     work_queue_t *q = work_queue_create(1024);
     if (!q) return -1;
@@ -268,6 +270,10 @@ int copy_directory_recursive(const char *src_dir, const char *dest_dir,
     free(threads);
     free(args);
     work_queue_destroy(q);
+
+    if (atomic_load(&g_stats.total_files_failed) > 0) {
+        return -1;
+    }
 
     return 0;
 }

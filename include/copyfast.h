@@ -87,4 +87,7 @@ void   copyfast_get_time(struct timespec *ts);
 /* Size parsing helper (e.g., 64K, 1M, 16M) */
 int copyfast_parse_size(const char *str, size_t *out_size);
 
+/* Path basename extraction helper with trailing slash normalization */
+int copyfast_get_basename(const char *path, char *out_base, size_t out_size);
+
 #endif /* COPYFAST_H */

@@ -109,7 +109,8 @@ void progress_update(progress_meter_t *prog, off_t bytes_added, off_t sparse_ski
 }
 
 void progress_finish(progress_meter_t *prog) {
-    if (!prog) return;
+    if (!prog || prog->is_finished) return;
+    prog->is_finished = true;
     if (prog->thread_running) {
         prog->thread_running = false;
         pthread_join(prog->thread, NULL);
